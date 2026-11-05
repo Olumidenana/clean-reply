@@ -1,0 +1,14 @@
+{
+  "name": "clean-reply",
+  "version": "1.0.0",
+  "description": "Zero-dependency email thread and signature parser for Resend Inbound & AI agent pipelines",
+  "type": "module",
+  "main": "index.mjs",
+  "types": "index.d.ts",
+  "scripts": {
+    "test": "node --test test.mjs"
+  },
+  "keywords": ["resend", "email", "inbound", "email-reply-parser", "ai-agents", "llm"],
+  "author": "Antigravity",
+  "license": "MIT"
+}

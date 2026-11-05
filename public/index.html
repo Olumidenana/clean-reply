@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>clean-reply — Inbound Email Thread & Signature Parser</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', -apple-system, sans-serif; background-color: #050505; color: #ededed; }
+    .font-mono { font-family: 'Geist Mono', monospace; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-white selection:text-black antialiased">
+
+  <main class="max-w-5xl mx-auto px-6 py-14 w-full">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-bold text-black text-sm">✦</div>
+        <span class="font-mono text-sm tracking-wider text-neutral-400 uppercase">clean-reply playground</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-mono bg-[#141414] border border-[#262626] text-neutral-400 px-3 py-1 rounded-full">0 dependencies</span>
+        <span class="text-xs font-mono bg-[#141414] border border-[#262626] text-neutral-400 px-3 py-1 rounded-full">&lt; 1KB</span>
+      </div>
+    </div>
+
+    <div class="space-y-3 mb-8">
+      <h1 class="text-4xl sm:text-5xl font-bold tracking-tight text-white">clean-reply</h1>
+      <p class="text-neutral-400 text-base sm:text-lg max-w-3xl">
+        Extract clean user replies from inbound emails. Strips Gmail/Outlook quotes, mobile signatures, and disclaimers to prevent AI context hallucination.
+      </p>
+    </div>
+
+    <!-- Quick Preset Buttons -->
+    <div class="flex flex-wrap items-center gap-2 mb-6 text-xs font-mono">
+      <span class="text-neutral-500 mr-1">Load sample:</span>
+      <button onclick="loadSample('gmail')" class="bg-[#111] hover:bg-[#1a1a1a] border border-[#262626] text-neutral-300 px-3 py-1.5 rounded transition">Gmail Thread</button>
+      <button onclick="loadSample('outlook')" class="bg-[#111] hover:bg-[#1a1a1a] border border-[#262626] text-neutral-300 px-3 py-1.5 rounded transition">Outlook Desktop</button>
+      <button onclick="loadSample('iphone')" class="bg-[#111] hover:bg-[#1a1a1a] border border-[#262626] text-neutral-300 px-3 py-1.5 rounded transition">Mobile Signature</button>
+      <button onclick="loadSample('disclaimer')" class="bg-[#111] hover:bg-[#1a1a1a] border border-[#262626] text-neutral-300 px-3 py-1.5 rounded transition">Legal Disclaimer</button>
+    </div>
+
+    <!-- Grid: Input & Output -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <!-- Input Panel -->
+      <div class="flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs font-mono uppercase text-neutral-400 tracking-wider">Raw Inbound Email Body</label>
+          <span id="rawCharCount" class="text-xs font-mono text-neutral-500">0 chars</span>
+        </div>
+        <textarea
+          id="rawInput"
+          rows="14"
+          class="w-full bg-[#0a0a0a] border border-[#262626] rounded-xl p-4 font-mono text-xs text-neutral-300 focus:outline-none focus:border-neutral-400 transition resize-none leading-relaxed"
+          placeholder="Paste incoming raw email text here..."
+        ></textarea>
+      </div>
+
+      <!-- Output Panel -->
+      <div class="flex flex-col space-y-4">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-xs font-mono uppercase text-emerald-400 tracking-wider flex items-center gap-1.5">
+              <span>Clean Prompt</span>
+              <span class="text-[10px] bg-emerald-950/60 border border-emerald-800 text-emerald-400 px-1.5 py-0.2 rounded">Fed to LLM</span>
+            </label>
+            <span id="savedTokens" class="text-xs font-mono text-emerald-400">0% context saved</span>
+          </div>
+          <div
+            id="cleanOutput"
+            class="w-full bg-[#0d130e] border border-emerald-900/40 rounded-xl p-4 font-mono text-xs text-emerald-300 min-h-[140px] whitespace-pre-wrap select-all"
+          >No output yet</div>
+        </div>
+
+        <!-- Stripped Components -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+          <div class="bg-[#0e0e0e] border border-[#222] rounded-lg p-3">
+            <div class="text-neutral-500 text-[10px] uppercase mb-1">Extracted Signature</div>
+            <div id="sigOutput" class="text-neutral-400 truncate">None</div>
+          </div>
+          <div class="bg-[#0e0e0e] border border-[#222] rounded-lg p-3">
+            <div class="text-neutral-500 text-[10px] uppercase mb-1">Stripped Quote History</div>
+            <div id="quoteOutput" class="text-neutral-400 truncate">None</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Code Snippet -->
+    <div class="bg-[#0e0e0e] border border-[#222] rounded-xl p-6">
+      <div class="text-xs font-mono uppercase tracking-wider text-neutral-400 mb-3">Install & Usage</div>
+      <div class="bg-black border border-[#222] rounded-lg p-4 font-mono text-xs text-neutral-300 overflow-x-auto space-y-2">
+        <div class="text-neutral-500">npm install clean-reply</div>
+        <div class="text-neutral-400"><span class="text-rose-400">import</span> { cleanReply } <span class="text-rose-400">from</span> <span class="text-emerald-400">'clean-reply'</span>;</div>
+        <div class="text-neutral-400"><span class="text-blue-400">const</span> { clean, signature } = <span class="text-yellow-400">cleanReply</span>(req.body.text);</div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="border-t border-[#1a1a1a] py-6 text-center text-xs font-mono text-neutral-500">
+    Designed for Resend Inbound & AI Agents • Zero Dependencies • MIT
+  </footer>
+
+  <script>
+    // Client-side bundle of cleanReply logic for instant zero-latency UI
+    const QUOTE_PATTERNS = [
+      /^(?:On|Le|Am|El|Op)\s+.{1,250}\s+(?:wrote|écrit|geschrieben|escribió|schreef):/im,
+      /^-{3,}\s*(?:Original Message|Message d'origine|Ursprüngliche Nachricht)\s*-{3,}/im,
+      /^\s*From:\s+.*[\r\n]+\s*Sent:\s+.*[\r\n]+\s*To:\s+.*[\r\n]+\s*Subject:\s+.*/im,
+      /^-{3,}\s*(?:Forwarded message|Message transféré|Weitergeleitete Nachricht)\s*-{3,}/im,
+      /^_{10,}/m,
+      /^-{10,}/m,
+    ];
+    const SIGNATURE_PATTERNS = [
+      /^--\s*$/m,
+      /^---\s*$/m,
+      /^Sent from my (?:iPhone|iPad|Mac|Galaxy|Android)/im,
+      /^Get Outlook for (?:iOS|Android|Windows)/im,
+      /^Sent from (?:Mailbox|ProtonMail|Superhuman)/im,
+      /^(?:Warm regards|Best regards|Kind regards|Best|Cheers|Thanks|Thank you|Sincerely),?\s*$/im,
+    ];
+    const DISCLAIMER_PATTERNS = [
+      /(?:This e-mail|This email|This message) and any files transmitted with it are confidential/i,
+      /The information contained in this communication is confidential/i,
+    ];
+
+    function cleanReply(rawText) {
+      if (!rawText) return { clean: '', signature: null, quoted: null, disclaimer: null };
+      let text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+      let cleanText = text, quotedText = null, signatureText = null, disclaimerText = null;
+
+      let earliestQuoteIndex = -1;
+      for (const pattern of QUOTE_PATTERNS) {
+        const m = cleanText.match(pattern);
+        if (m && m.index !== undefined && (earliestQuoteIndex === -1 || m.index < earliestQuoteIndex)) {
+          earliestQuoteIndex = m.index;
+        }
+      }
+
+      const lines = cleanText.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim().startsWith('>')) {
+          const charIndex = lines.slice(0, i).join('\n').length + (i > 0 ? 1 : 0);
+          if (earliestQuoteIndex === -1 || charIndex < earliestQuoteIndex) earliestQuoteIndex = charIndex;
+          break;
+        }
+      }
+
+      if (earliestQuoteIndex !== -1) {
+        quotedText = cleanText.slice(earliestQuoteIndex).trim();
+        cleanText = cleanText.slice(0, earliestQuoteIndex).trim();
+      }
+
+      for (const d of DISCLAIMER_PATTERNS) {
+        const m = cleanText.match(d);
+        if (m && m.index !== undefined) {
+          disclaimerText = cleanText.slice(m.index).trim();
+          cleanText = cleanText.slice(0, m.index).trim();
+          break;
+        }
+      }
+
+      for (const s of SIGNATURE_PATTERNS) {
+        const m = cleanText.match(s);
+        if (m && m.index !== undefined && m.index > 0) {
+          signatureText = cleanText.slice(m.index).trim();
+          cleanText = cleanText.slice(0, m.index).trim();
+          break;
+        }
+      }
+
+      return { clean: cleanText.trim(), signature: signatureText, quoted: quotedText, disclaimer: disclaimerText };
+    }
+
+    const rawInput = document.getElementById('rawInput');
+    const cleanOutput = document.getElementById('cleanOutput');
+    const sigOutput = document.getElementById('sigOutput');
+    const quoteOutput = document.getElementById('quoteOutput');
+    const rawCharCount = document.getElementById('rawCharCount');
+    const savedTokens = document.getElementById('savedTokens');
+
+    function update() {
+      const val = rawInput.value;
+      rawCharCount.textContent = `${val.length} chars`;
+      const res = cleanReply(val);
+
+      cleanOutput.textContent = res.clean || '(Empty response)';
+      sigOutput.textContent = res.signature ? res.signature.split('\n')[0] : 'None';
+      quoteOutput.textContent = res.quoted ? `${res.quoted.split('\n').length} lines removed` : 'None';
+
+      const saved = val.length > 0 ? Math.round(((val.length - res.clean.length) / val.length) * 100) : 0;
+      savedTokens.textContent = `${saved}% context saved`;
+    }
+
+    rawInput.addEventListener('input', update);
+
+    const SAMPLES = {
+      gmail: `LGTM! Let's deploy the Next.js migration this evening.\n\nOn Mon, Nov 3, 2026 at 2:15 PM Zeno Rocha <zeno@resend.com> wrote:\n> Team, are we good to cut the v2 release?\n> Let me know if there are any blocking regressions.`,
+      outlook: `Approved from my end.\n\nBest regards,\nSarah Jenkins\nDirector of Engineering\n\n-----Original Message-----\nFrom: Alex Rivera [mailto:alex@startup.io]\nSent: Monday, November 3, 2026 11:00 AM\nTo: Sarah Jenkins\nSubject: Re: Enterprise SSO roll-out`,
+      iphone: `Sounds great, please proceed with the contract.\n\nSent from my iPhone`,
+      disclaimer: `We have wired the funds today.\n\nThis email and any files transmitted with it are confidential and intended solely for the use of the individual or entity to whom they are addressed.`
+    };
+
+    function loadSample(key) {
+      rawInput.value = SAMPLES[key];
+      update();
+    }
+
+    // Default init
+    loadSample('gmail');
+  </script>
+</body>
+</html>
